@@ -8,12 +8,14 @@ import (
 
 func LoadFEN(fen string) (*Board, error) {
 	parts := strings.Split(fen, " ")
-	if len(parts) != 6 {
-		return nil, fmt.Errorf("invalid FEN string")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid FEN string: needs at least position and side to move")
 	}
 
 	b := &Board{
 		EnPassantTarget: -1,
+		HalfmoveClock: 0,
+		FullmoveNumber: 1,
 	}
 
 	// 1. Parse board position
@@ -47,28 +49,36 @@ func LoadFEN(fen string) (*Board, error) {
     }
 
     // 3. Castling rights
-    b.CastlingRights = parts[2]
+    if len(parts) > 2 {
+        b.CastlingRights = parts[2]
+    } else {
+        b.CastlingRights = "-"
+    }
 
     // 4. En passant target
-    if parts[3] != "-" {
+    if len(parts) > 3 && parts[3] != "-" {
         file := parts[3][0] - 'a'
         rank := parts[3][1] - '1'
         b.EnPassantTarget = int(rank*8 + file)
     }
 
     // 5. Halfmove clock
-    half, err := strconv.Atoi(parts[4])
-    if err != nil {
-        return nil, err
+    if len(parts) > 4 {
+        half, err := strconv.Atoi(parts[4])
+        if err != nil {
+            return nil, err
+        }
+        b.HalfmoveClock = half
     }
-    b.HalfmoveClock = half
 
     // 6. Fullmove number
-    full, err := strconv.Atoi(parts[5])
-    if err != nil {
-        return nil, err
+    if len(parts) > 5 {
+        full, err := strconv.Atoi(parts[5])
+        if err != nil {
+            return nil, err
+        }
+        b.FullmoveNumber = full
     }
-    b.FullmoveNumber = full
 
     return b, nil
 }

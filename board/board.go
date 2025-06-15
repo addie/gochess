@@ -1,5 +1,7 @@
 package board
 
+import "strings"
+
 type Color int
 
 const (
@@ -55,6 +57,18 @@ func (b *Board) GeneratePseudoLegalMoves() []Move {
 			moves = append(moves, b.generateKingMoves(i)...)
 		}
 	}
+	
+	// Add castling moves if king can castle
+	if b.SideToMove == White {
+		if b.Squares[4].Piece == King && b.Squares[4].Color == White && !b.IsInCheck(White) {
+			moves = append(moves, b.generateCastlingMoves(4)...)
+		}
+	} else {
+		if b.Squares[60].Piece == King && b.Squares[60].Color == Black && !b.IsInCheck(Black) {
+			moves = append(moves, b.generateCastlingMoves(60)...)
+		}
+	}
+	
 	return moves
 }
 
@@ -71,7 +85,7 @@ func (b *Board) generatePawnMoves(from int) []Move {
 	}
 
 	to := from + dir
-	if b.Squares[to].Piece == Empty {
+	if to >= 0 && to < 64 && b.Squares[to].Piece == Empty {
 		if to/8 == promotionRank {
 			for _, p := range []Piece{Queen, Rook, Bishop, Knight} {
 				moves = append(moves, Move{From: from, To: to, Promote: p})
@@ -183,6 +197,84 @@ func (b *Board) generateKingMoves(from int) []Move {
 	return moves
 }
 
+func (b *Board) generateCastlingMoves(from int) []Move {
+	moves := []Move{}
+	
+	if b.SideToMove == White {
+		// White castles from e1
+		if from != 4 { // e1
+			return moves
+		}
+		
+		// Kingside castling
+		if strings.Contains(b.CastlingRights, "K") {
+			// Check if squares between king and rook are empty
+			if b.Squares[5].Piece == Empty && b.Squares[6].Piece == Empty {
+				// Check if rook is on h1
+				if b.Squares[7].Piece == Rook && b.Squares[7].Color == White {
+					// Check if king doesn't move through check
+					if !b.IsSquareAttacked(5, Black) && !b.IsSquareAttacked(6, Black) {
+						moves = append(moves, Move{From: 4, To: 6, Castling: true})
+					}
+				}
+			}
+		}
+		
+		// Queenside castling
+		if strings.Contains(b.CastlingRights, "Q") {
+			// Check if squares between king and rook are empty
+			if b.Squares[1].Piece == Empty && b.Squares[2].Piece == Empty && b.Squares[3].Piece == Empty {
+				// Check if rook is on a1
+				if b.Squares[0].Piece == Rook && b.Squares[0].Color == White {
+					// Check if king doesn't move through check
+					if !b.IsSquareAttacked(2, Black) && !b.IsSquareAttacked(3, Black) {
+						moves = append(moves, Move{From: 4, To: 2, Castling: true})
+					}
+				}
+			}
+		}
+	} else {
+		// Black castles from e8
+		if from != 60 { // e8
+			return moves
+		}
+		
+		// Kingside castling
+		if strings.Contains(b.CastlingRights, "k") {
+			// Check if squares between king and rook are empty
+			if b.Squares[61].Piece == Empty && b.Squares[62].Piece == Empty {
+				// Check if rook is on h8
+				if b.Squares[63].Piece == Rook && b.Squares[63].Color == Black {
+					// Check if king doesn't move through check
+					if !b.IsSquareAttacked(61, White) && !b.IsSquareAttacked(62, White) {
+						moves = append(moves, Move{From: 60, To: 62, Castling: true})
+					}
+				}
+			}
+		}
+		
+		// Queenside castling
+		if strings.Contains(b.CastlingRights, "q") {
+			// Check if squares between king and rook are empty
+			if b.Squares[57].Piece == Empty && b.Squares[58].Piece == Empty && b.Squares[59].Piece == Empty {
+				// Check if rook is on a8
+				if b.Squares[56].Piece == Rook && b.Squares[56].Color == Black {
+					// Check if king doesn't move through check
+					if !b.IsSquareAttacked(58, White) && !b.IsSquareAttacked(59, White) {
+						moves = append(moves, Move{From: 60, To: 58, Castling: true})
+					}
+				}
+			}
+		}
+	}
+	
+	return moves
+}
+
+func (b *Board) IsSquareAttacked(sq int, byColor Color) bool {
+	return len(b.attacksToSquare(sq, byColor)) > 0
+}
+
 func abs(x int) int {
 	if x < 0 {
 		return -x
@@ -220,30 +312,81 @@ func (b *Board) attacksToSquare(sq int, byColor Color) []int {
 			continue
 		}
 
-		var moves []Move
+		var attacks bool
 		switch piece.Piece {
 		case Pawn:
-			moves = b.generatePawnMoves(i)
+			// Pawns attack diagonally, not where they move
+			attacks = b.pawnAttacks(i, sq)
 		case Knight:
-			moves = b.generateKnightMoves(i)
+			moves := b.generateKnightMoves(i)
+			for _, m := range moves {
+				if m.To == sq {
+					attacks = true
+					break
+				}
+			}
 		case Bishop:
-			moves = b.generateBishopMoves(i)
+			moves := b.generateBishopMoves(i)
+			for _, m := range moves {
+				if m.To == sq {
+					attacks = true
+					break
+				}
+			}
 		case Rook:
-			moves = b.generateRookMoves(i)
+			moves := b.generateRookMoves(i)
+			for _, m := range moves {
+				if m.To == sq {
+					attacks = true
+					break
+				}
+			}
 		case Queen:
-			moves = b.generateQueenMoves(i)
+			moves := b.generateQueenMoves(i)
+			for _, m := range moves {
+				if m.To == sq {
+					attacks = true
+					break
+				}
+			}
 		case King:
-			moves = b.generateKingMoves(i)
+			moves := b.generateKingMoves(i)
+			for _, m := range moves {
+				if m.To == sq {
+					attacks = true
+					break
+				}
+			}
 		}
 
-		for _, m := range moves {
-			if m.To == sq {
-				attackers = append(attackers, i)
-			}
+		if attacks {
+			attackers = append(attackers, i)
 		}
 	}
 
 	return attackers
+}
+
+func (b *Board) pawnAttacks(from int, target int) bool {
+	dir := 8
+	if b.Squares[from].Color == Black {
+		dir = -8
+	}
+	
+	// Check both diagonal attack squares
+	for _, side := range []int{-1, 1} {
+		attackSq := from + dir + side
+		if attackSq == target {
+			// Verify it's a valid diagonal (not wrapping around board edge)
+			fromFile := from % 8
+			targetFile := target % 8
+			if abs(fromFile-targetFile) == 1 && abs(from/8-target/8) == 1 {
+				return true
+			}
+		}
+	}
+	
+	return false
 }
 
 func (b *Board) Copy() *Board {
@@ -275,9 +418,25 @@ func (b *Board) ApplyMove(m Move) {
         b.Squares[capSq] = Square{Piece: Empty}
     }
 
-    // Castling (not yet implemented)
+    // Castling
     if m.Castling {
-        // TODO: move rook
+        if moving.Color == White {
+            if m.To == 6 { // Kingside
+                b.Squares[7] = Square{Piece: Empty}
+                b.Squares[5] = Square{Piece: Rook, Color: White}
+            } else if m.To == 2 { // Queenside
+                b.Squares[0] = Square{Piece: Empty}
+                b.Squares[3] = Square{Piece: Rook, Color: White}
+            }
+        } else {
+            if m.To == 62 { // Kingside
+                b.Squares[63] = Square{Piece: Empty}
+                b.Squares[61] = Square{Piece: Rook, Color: Black}
+            } else if m.To == 58 { // Queenside
+                b.Squares[56] = Square{Piece: Empty}
+                b.Squares[59] = Square{Piece: Rook, Color: Black}
+            }
+        }
     }
 
     // Update en passant target
@@ -285,6 +444,42 @@ func (b *Board) ApplyMove(m Move) {
         b.EnPassantTarget = (m.From + m.To) / 2
     } else {
         b.EnPassantTarget = -1
+    }
+
+    // Update castling rights
+    newRights := ""
+    for _, c := range b.CastlingRights {
+        keep := true
+        switch c {
+        case 'K':
+            // White kingside - lost if king or h1 rook moves
+            if m.From == 4 || m.From == 7 || m.To == 7 {
+                keep = false
+            }
+        case 'Q':
+            // White queenside - lost if king or a1 rook moves
+            if m.From == 4 || m.From == 0 || m.To == 0 {
+                keep = false
+            }
+        case 'k':
+            // Black kingside - lost if king or h8 rook moves
+            if m.From == 60 || m.From == 63 || m.To == 63 {
+                keep = false
+            }
+        case 'q':
+            // Black queenside - lost if king or a8 rook moves
+            if m.From == 60 || m.From == 56 || m.To == 56 {
+                keep = false
+            }
+        }
+        if keep {
+            newRights += string(c)
+        }
+    }
+    if newRights == "" {
+        b.CastlingRights = "-"
+    } else {
+        b.CastlingRights = newRights
     }
 
     // Toggle side to move
@@ -313,13 +508,35 @@ func (b *Board) generateSlidingMoves(from int, deltas []int) []Move {
 
 	for _, delta := range deltas {
 		to := from + delta
+		prevRank := fromRank
+		prevFile := fromFile
+		
 		for to >= 0 && to < 64 {
 			toRank := to / 8
 			toFile := to % 8
 
-			// Break if wrapped around edge
-			if abs(toRank-fromRank) > 7 || abs(toFile-fromFile) > 7 {
-				break
+			// Check if we've wrapped around the board
+			// For horizontal moves (delta = -1 or 1), rank should stay the same
+			// For vertical moves (delta = -8 or 8), file should stay the same
+			// For diagonal moves, the rank and file differences should be consistent
+			
+			rankDiff := toRank - prevRank
+			fileDiff := toFile - prevFile
+			
+			// Check if the move is consistent with the delta
+			if delta == 1 || delta == -1 { // Horizontal
+				if rankDiff != 0 { // Wrapped around edge
+					break
+				}
+			} else if delta == 8 || delta == -8 { // Vertical
+				if fileDiff != 0 { // Should stay on same file
+					break
+				}
+			} else { // Diagonal
+				// For diagonals, abs(rankDiff) should equal abs(fileDiff) and both should be 1
+				if abs(rankDiff) != 1 || abs(fileDiff) != 1 {
+					break
+				}
 			}
 
 			dest := b.Squares[to]
@@ -332,6 +549,8 @@ func (b *Board) generateSlidingMoves(from int, deltas []int) []Move {
 				break
 			}
 
+			prevRank = toRank
+			prevFile = toFile
 			to += delta
 		}
 	}
